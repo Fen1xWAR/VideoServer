@@ -1,9 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-
 from fastapi.openapi.utils import get_openapi
-
-from app.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.controllers import video, metrics, auth, cameras
