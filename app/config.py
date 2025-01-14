@@ -14,6 +14,7 @@ class Config:
             self.SECRET_KEY = "your_secret_key"  # Секретный ключ для JWT
             self.ALGORITHM = "HS256"  # Алгоритм шифрования JWT
             self.ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Время жизни токена доступа
+            self.FACE_RECOGNITION = False
             self._load_settings()
 
         def _load_settings(self):
@@ -26,6 +27,7 @@ class Config:
                     self.SECRET_KEY = data.get("SECRET_KEY", self.SECRET_KEY)
                     self.ALGORITHM = data.get("ALGORITHM", self.ALGORITHM)
                     self.ACCESS_TOKEN_EXPIRE_MINUTES = data.get("ACCESS_TOKEN_EXPIRE_MINUTES", self.ACCESS_TOKEN_EXPIRE_MINUTES)
+                    self.FACE_RECOGNITION = data.get("FACE_RECOGNITION", self.FACE_RECOGNITION)
             except FileNotFoundError:
                 self._save_settings()
 
@@ -41,6 +43,7 @@ class Config:
                 "SECRET_KEY": self.SECRET_KEY,
                 "ALGORITHM": self.ALGORITHM,
                 "ACCESS_TOKEN_EXPIRE_MINUTES": self.ACCESS_TOKEN_EXPIRE_MINUTES,
+                "FACE_RECOGNITION": self.FACE_RECOGNITION,
             }
 
         def update(self, **kwargs):

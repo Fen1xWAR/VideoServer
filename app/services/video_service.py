@@ -19,7 +19,7 @@ async def send_frame(frame_bytes: bytes) -> bytes:
                 print(f"Ошибка при отправке кадра: {response.status}")
                 return frame_bytes  # Возвращаем оригинальный кадр в случае ошибки
 
-async def video_capture(camera_id: int, camera_url: str, face_recognition: bool = True):
+async def video_capture(camera_id: int, camera_url: str):
     if isinstance(camera_url, str):
         camera_url = int(camera_url)
     cap = cv2.VideoCapture(camera_url)
@@ -37,7 +37,7 @@ async def video_capture(camera_id: int, camera_url: str, face_recognition: bool 
         _, encoded_frame = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), Config.settings().JPEG_QUALITY])
         frame_bytes = encoded_frame.tobytes()
 
-        if face_recognition:
+        if Config.settings().FACE_RECOGNITION:
             frame_bytes = await send_frame(frame_bytes)  # Отправляем кадр и получаем ответ
 
         camera_streams[camera_id] = {"frame": frame_bytes}  # Обновляем camera_streams
