@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.controllers import video, metrics, auth, cameras
 from app.db_models import *
 from app.services.camera_service import get_camera_list
-from app.services.video_service import camera_streams, video_capture
+from app.services.video_service import  init_camera_capture
+
 
 # Настройка OpenAPI-схемы для отображения Bearer-токена
 def custom_openapi():
@@ -41,20 +42,17 @@ async def init_app():
 
     # Инициализируем видеопотоки для каждой камеры
     for camera in camera_list:
-        camera_streams[camera.id] = {"url": camera.url, "frame": None}
-        # Создаем асинхронную задачу для захвата видеопотока
-        asyncio.create_task(video_capture(camera.id, camera.url))
-
-
-
-    # for camera in Config.CAMERA_CONFIG:
-    #     camera_streams[camera["id"]] = {"url": camera["url"], "frame": None}
-    #     asyncio.create_task(video_capture(camera["id"], camera["url"]))
-
+            init_camera_capture(camera)
+    # Подключение маршрутов
+    app.include_router(video.router)
+    app.include_router(metrics.router)
+    app.include_router(auth.router, prefix="/auth", tags=["auth"])
+    app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
 
 
 async def close_app():
     close_db()
+
 
 
 @asynccontextmanager
@@ -78,10 +76,4 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Подключение маршрутов
-app.include_router(video.router)
-app.include_router(metrics.router)
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
 

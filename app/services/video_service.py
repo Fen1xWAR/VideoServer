@@ -4,11 +4,13 @@ import cv2
 import hashlib
 from typing import Dict
 from app.config import Config
+from app.db_models import Camera
 
-camera_streams: Dict[int, Dict[str, bytes]] = {}
+camera_streams: Dict[str, Dict[str, bytes]] = {}
 semaphore = asyncio.Semaphore(20)  # Ограничение на количество запросов
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
 
 def detect_face(frame) -> bool:
     """Локальная проверка на наличие лица."""
@@ -16,9 +18,25 @@ def detect_face(frame) -> bool:
     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
     return len(faces) > 0
 
+
+def init_camera_capture(camera: Camera):
+    print("init camera")
+    if (camera.active):
+
+        camera_streams[str(camera.id)] = {"url": camera.url, "frame": None, "running": True}
+    else:
+        camera_streams[str(camera.id)] = {"url": camera.url, "frame": None, "running": False}
+    # Создаем асинхронную задачу для захвата видеопотока
+    asyncio.create_task(video_capture(camera.id, camera.url))
+    print(camera_streams)
+
+
+
+
 def hash_frame(frame_bytes: bytes) -> str:
     """Создание хэша для проверки изменений кадра."""
     return hashlib.md5(frame_bytes).hexdigest()
+
 
 async def send_frame(frame_bytes: bytes) -> bytes:
     """Отправляет кадр на эндпоинт validate и возвращает полученное изображение."""
@@ -32,7 +50,9 @@ async def send_frame(frame_bytes: bytes) -> bytes:
                     print(f"Ошибка при отправке кадра: {response.status}")
                     return frame_bytes  # Возвращаем оригинальный кадр в случае ошибки
 
+
 async def video_capture(camera_id: int, camera_url: str):
+    print('capture')
     if isinstance(camera_url, str):
         camera_url = int(camera_url)
     cap = cv2.VideoCapture(camera_url)
@@ -42,7 +62,7 @@ async def video_capture(camera_id: int, camera_url: str):
 
     previous_frame_hash = None
 
-    while True:
+    while camera_streams[str(camera_id)]["running"]:  # Проверяем флаг running
         ret, frame = cap.read()
         if not ret:
             print(f"Ошибка чтения кадра с камеры {camera_id}")
@@ -65,8 +85,9 @@ async def video_capture(camera_id: int, camera_url: str):
         if Config.settings().FACE_RECOGNITION and detect_face(frame):
             frame_bytes = await send_frame(frame_bytes)  # Отправляем кадр на сервер
 
-        camera_streams[camera_id] = {"frame": frame_bytes}  # Обновляем camera_streams
+        camera_streams[str(camera_id)]["frame"] = frame_bytes  # Обновляем camera_streams
 
         await asyncio.sleep(0.001)  # Исключаем 100% загрузку процессора
 
     cap.release()
+    print('capture over')

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from app.db_models import User, get_db
-from app.services.security import verify_password, get_password_hash, create_access_token
+from app.services.security import verify_password, get_password_hash, create_access_token, get_current_user
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"message": "User registered successfully"}
+    return {"detail": "User registered successfully"}
 
 
 # Логин (вход) пользователя
@@ -48,3 +48,9 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         data={"sub": user.username, "role": user.role}, expires_delta=timedelta(minutes=30)
     )
     return {"access_token": access_token, "token_type": "bearer"}
+@router.get("/user_data")
+async def get_user_data(user_id: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user

@@ -61,5 +61,5 @@ class Config:
     @classmethod
     def settings(cls):
         if cls._settings is None:
-            raise RuntimeError("Config is not initialized. Call Config.initialize() first.")
+            Config.initialize()
         return cls._settings
