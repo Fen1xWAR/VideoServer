@@ -1,0 +1,31 @@
+!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Metrics</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Website Metrics</h1>
+    <div class="metrics">
+        <div class="metric">
+            <h2>Memory Usage (MB)</h2>
+            <p id="memory-usage">Loading...</p>
+        </div>
+        <div class="metric">
+            <h2>Number of Clients</h2>
+            <p id="num-clients">Loading...</p>
+        </div>
+        <div class="metric">
+            <h2>Number of Cameras</h2>
+            <p id="num-cameras">Loading...</p>
+        </div>
+    </div>
+    <canvas id="metricsChart" width="400" height="200"></canvas>
+</div>
+<script src="script.js"></script>
+</body>
+</html>

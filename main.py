@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.controllers import video, metrics, auth, cameras
 from app.db_models import *
 from app.services.camera_service import get_camera_list
-from app.services.video_service import  init_camera_capture
+from app.services.video_service import start_camera
 
 
 # Настройка OpenAPI-схемы для отображения Bearer-токена
@@ -42,7 +42,7 @@ async def init_app():
 
     # Инициализируем видеопотоки для каждой камеры
     for camera in camera_list:
-            init_camera_capture(camera)
+          await  start_camera(camera)
     # Подключение маршрутов
     app.include_router(video.router)
     app.include_router(metrics.router)

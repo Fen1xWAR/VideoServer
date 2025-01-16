@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Stream</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #000;
+            color: #fff;
+        }
+
+        img {
+            max-width: 100%;
+            max-height: 100%;
+            border: 5px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            margin: 10px;
+        }
+
+        .chart {
+            margin: 20px 0;
+            max-width: 600px;
+            width: 100%;
+            height: 300px;
+        }
+
+        select {
+            margin: 10px;
+            padding: 5px;
+            font-size: 16px;
+        }
+
+        .auth-form {
+            margin: 20px;
+        }
+    </style>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+<h1>Video Stream</h1>
+
+<div class="auth-form">
+    <label for="username">Логин:</label>
+    <input type="text" id="username" required>
+    <label for="password">Пароль:</label>
+    <input type="password" id="password" required>
+    <button id="login-button">Войти</button>
+</div>
+
+<label for="format-select">Выберите формат видео:</label>
+<select id="format-select">
+    <option value="jpg">JPEG</option>
+    <option selected value="mp4">MP4</option>
+    <option value="avi">AVI</option>
+</select>
+<div class="chart" id="memoryChart"></div>
+<div class="chart" id="clientsChart"></div>
+<div style="display: flex; height: 100%; max-width: 500px; max-height: 500px" id="video"></div>
+
+<script>
+    const video = document.getElementById('video');
+    const cameraIds = ["be36ce08-825e-4df8-ba50-84fc20c88709", "f308b755-16ca-47fa-8130-fd699bd35345"]; // Массив ID камер
+    const videoElements = [];
+    const formatSelect = document.getElementById('format-select');
+    let jwtToken = '';
+
+    // Функция для аутентификации и получения JWT
+    async function authenticate() {
+        console.log('1')
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({username, password})
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка аутентификации');
+            }
+
+            const data = await response.json();
+            jwtToken = data.access_token; // Сохраняем JWT
+            console.log('Аутентификация успешна, токен получен:', jwtToken);
+
+            // Подключаемся к камерам после успешной аутентификации
+            cameraIds.forEach(cameraId => connectWebSocket(cameraId, jwtToken));
+            // fetchMetrics(); // Начинаем получать метрики
+        } catch (error) {
+            console.error('Ошибка при аутентификации:', error);
+        }
+    }
+
+    // Функция для подключения к WebSocket
+    function connectWebSocket(cameraId, jwtToken) {
+        const videoElement = document.createElement('img');
+        videoElement.alt = `Подключение к видео потоку камеры ${cameraId}...`;
+        video.appendChild(videoElement);
+        videoElements.push(videoElement);
+
+        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/video/${cameraId}`);
+
+        socket.onopen = () => {
+            // Отправляем токен в сообщении после установки соединения
+            socket.send(JSON.stringify({token: jwtToken}));
+            console.log(`WebSocket-соединение для камеры ${cameraId} установлено.`);
+        };
+
+        socket.onmessage = (event) => {
+            videoElement.src = "data:image/jpeg;base64," + event.data;
+        };
+
+        socket.onerror = (error) => {
+            console.error(`Ошибка WebSocket для камеры ${cameraId}:`, error);
+            videoElement.alt = `Ошибка подключения к видео потоку камеры ${cameraId}.`;
+        };
+
+        socket.onclose = () => {
+            console.log(`Подключение WebSocket для камеры ${cameraId} закрыто.`);
+            videoElement.alt = `Видео поток камеры ${cameraId} отключён.`;
+        };
+    }
+
+
+    // Обновляем подключения при изменении формата
+    formatSelect.addEventListener('change', () => {
+        if (jwtToken) {
+            video.innerHTML = '';
+            videoElements.length = 0;
+
+            const newFormat = formatSelect.value;
+            cameraIds.forEach(cameraId => connectWebSocket(cameraId, newFormat));
+        }
+    });
+
+
+    document.getElementById('login-button').addEventListener('click', authenticate);
+</script>
+</body>
+</html>
