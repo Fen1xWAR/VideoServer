@@ -42,8 +42,8 @@ async def websocket_video_stream(websocket: WebSocket, camera_id: str):
             return
 
         db = get_db()
-        camera_obj = db.get(Camera, camera_id)
         camera_id = UUID(camera_id)
+        camera_obj = db.get(Camera, camera_id)
         print(f"Пользователь {user['username']} подключился к камере {camera_obj.name}")
 
         # Обрабатываем поток данных

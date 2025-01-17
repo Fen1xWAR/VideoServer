@@ -1,4 +1,6 @@
 ﻿import asyncio
+from http.client import responses
+
 import aiohttp
 import cv2
 import hashlib
@@ -13,6 +15,12 @@ face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_fronta
 # Пример структуры для управления потоками камер
 camera_tasks: Dict[int, asyncio.Task] = {}
 camera_streams: Dict[int, Dict[str, Any]] = {}
+
+
+async def send_frame_async(frame_bytes):
+    """ Асинхронная функция для отправки кадра на сервер """
+    if Config.settings().FACE_RECOGNITION:
+        await send_frame(frame_bytes)
 
 
 async def video_capture(camera: Camera):
@@ -30,6 +38,7 @@ async def video_capture(camera: Camera):
         return
 
     previous_frame_hash = None
+    frame_counter = 0  # Счетчик кадров
 
     while camera_streams[camera.id]["running"]:
         ret, frame = cap.read()
@@ -48,15 +57,18 @@ async def video_capture(camera: Camera):
 
         previous_frame_hash = frame_hash
 
-        if Config.settings().FACE_RECOGNITION and detect_face(frame):
-            frame_bytes = await send_frame(frame_bytes)
-
+        frame_counter += 1  # Увеличиваем счетчик кадров
         camera_streams[camera.id]["frame"] = frame_bytes
+        # Отправляем кадр только если это 10-й кадр
+        if frame_counter % 10 == 0:
+
+            # Запускаем отправку кадра в отдельной задаче
+            asyncio.create_task(send_frame_async(frame_bytes))
+
         await asyncio.sleep(0.001)
 
     cap.release()
     print(f"Захват камеры {camera.name} завершён.")
-
 
 async def start_camera(camera: Camera):
     """ Метод запускает захват камеры"""
@@ -98,23 +110,27 @@ def hash_frame(frame_bytes: bytes) -> str:
     return hashlib.md5(frame_bytes).hexdigest()
 
 
+
 async def send_frame(frame_bytes: bytes) -> bytes:
-    """Отправляет кадр на эндпоинт validate и возвращает полученное изображение."""
+    """Отправляет кадр на эндпоинт validate и печатает ответ в консоль."""
     headers = {'Content-Type': 'application/octet-stream'}
+    response_data = None
     async with semaphore:  # Контроль числа одновременных запросов
         async with aiohttp.ClientSession() as session:
             try:
-
-                async with session.post('http://127.0.0.1:1111/validate', data=frame_bytes,
-                                        headers=headers) as response:
+                async with session.post('http://127.0.0.1:1111/validate', data=frame_bytes, headers=headers) as response:
                     if response.status == 200:
-                        return await response.read()  # Получаем обработанное изображение
+                        response_data = await response.read()  # Получаем обработанное изображение
+                        print("Ответ от сервера:", response_data)  # Печатаем ответ в консоль
                     else:
-                        print(f"Ошибка при отправке кадра: {response.status}")
-                        return frame_bytes  # Возвращаем оригинальный кадр в случае ошибки
+                        error_data = await response.json()
+                        print(f"Ошибка при отправке кадра: {response.status} , {error_data.get('detail')}")
+
             except Exception as e:
-                print(e)
-                return frame_bytes
+                print("Исключение:", e)
+
+    return response_data
+
 
 # async def video_capture(camera_id: int, camera_url: str):
 #     print('capture')
