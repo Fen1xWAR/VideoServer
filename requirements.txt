@@ -35,3 +35,5 @@ uvloop==0.21.0
 watchfiles==1.0.4
 websockets==14.1
 yarl==1.18.3
+
+requests~=2.32.3

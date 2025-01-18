@@ -1,5 +1,4 @@
-﻿# === app/settings.py ===
-import json
+﻿import json
 
 
 class Config:
@@ -7,6 +6,7 @@ class Config:
 
     class Settings:
         def __init__(self, filepath: str):
+            """Инициализация настроек с параметрами по умолчанию"""
             self.filepath = filepath
             self.CAMERA_RESOLUTION = (1920, 1080)  # Разрешение видеопотока
             self.JPEG_QUALITY = 50  # Качество сжатия JPEG
@@ -14,10 +14,11 @@ class Config:
             self.SECRET_KEY = "your_secret_key"  # Секретный ключ для JWT
             self.ALGORITHM = "HS256"  # Алгоритм шифрования JWT
             self.ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Время жизни токена доступа
-            self.FACE_RECOGNITION = False
-            self._load_settings()
+            self.FACE_RECOGNITION = False  # Использование распознавания лиц
+            self._load_settings()  # Попытка загрузить настройки из файла
 
         def _load_settings(self):
+            """Загрузка настроек из файла"""
             try:
                 with open(self.filepath, "r") as file:
                     data = json.load(file)
@@ -29,13 +30,16 @@ class Config:
                     self.ACCESS_TOKEN_EXPIRE_MINUTES = data.get("ACCESS_TOKEN_EXPIRE_MINUTES", self.ACCESS_TOKEN_EXPIRE_MINUTES)
                     self.FACE_RECOGNITION = data.get("FACE_RECOGNITION", self.FACE_RECOGNITION)
             except FileNotFoundError:
+                # Если файл настроек не найден, создаем новый файл с настройками по умолчанию
                 self._save_settings()
 
         def _save_settings(self):
+            """Сохранение настроек в файл"""
             with open(self.filepath, "w") as file:
                 json.dump(self.to_dict(), file, indent=4)
 
         def to_dict(self):
+            """Преобразование настроек в словарь для сохранения в JSON"""
             return {
                 "CAMERA_RESOLUTION": self.CAMERA_RESOLUTION,
                 "JPEG_QUALITY": self.JPEG_QUALITY,
@@ -47,6 +51,7 @@ class Config:
             }
 
         def update(self, **kwargs):
+            """Обновление настроек"""
             for key, value in kwargs.items():
                 if hasattr(self, key):
                     setattr(self, key, value)
@@ -54,12 +59,14 @@ class Config:
 
     @classmethod
     def initialize(cls, filepath="settings.json"):
-        print('initializing settings')
+        """Инициализация глобальных настроек"""
+        print('Initializing settings')
         if cls._settings is None:
             cls._settings = cls.Settings(filepath)
 
     @classmethod
     def settings(cls):
+        """Получение текущих настроек"""
         if cls._settings is None:
             Config.initialize()
         return cls._settings
