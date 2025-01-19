@@ -4,37 +4,33 @@ import os
 from datetime import datetime
 import numpy as np
 from modules.Module import Module
+import time
 
 
 class VideoRecording(Module):
     recorders = {}  # Словарь для хранения записей по камерам
     output_dir = "videos"
-    fps = 30
+    logs = []  # Список логов
 
-    def __init__(self, name, module_type, address, enabled, output_dir="videos", fps=30):
-        """
-        Модуль записи видео с нескольких камер. Сохраняет видеофайлы в один файл на камеру.
-        :param output_dir: Папка для сохранения видеофайлов
-        :param fps: Частота кадров
-        """
+    def __init__(self, name, module_type, address, enabled, output_dir="videos"):
         super().__init__(name, module_type, address, enabled)
         VideoRecording.output_dir = output_dir
-        VideoRecording.fps = fps
         os.makedirs(VideoRecording.output_dir, exist_ok=True)
+
+    def add_log(self, log_message):
+        """Метод для добавления логов в систему."""
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        log_entry = f"[{timestamp}] {log_message}"
+        VideoRecording.logs.append(log_entry)
 
     @staticmethod
     def _initialize_writer(camera_id, frame):
-        """
-        Инициализация нового файла для записи для указанной камеры.
-        :param camera_id: Идентификатор камеры
-        :param frame: Первый кадр (numpy array) для определения размера видео
-        """
+        """Инициализация нового файла для записи для указанной камеры."""
         now = datetime.now()
-        current_date = now.date()
         camera_dir = os.path.join(VideoRecording.output_dir, str(camera_id))
         os.makedirs(camera_dir, exist_ok=True)
 
-        filename = f"{camera_id}_{current_date}.avi"
+        filename = f"{camera_id}_{now.strftime('%Y%m%d_%H%M%S')}.avi"
         video_path = os.path.join(camera_dir, filename)
 
         height, width, _ = frame.shape
@@ -43,15 +39,17 @@ class VideoRecording(Module):
         writer = cv2.VideoWriter(
             video_path,
             cv2.VideoWriter_fourcc(*"XVID"),
-            VideoRecording.fps,
+            30,  # Установленная частота кадров
             frame_size,
         )
         VideoRecording.recorders[camera_id] = {
             "writer": writer,
             "video_path": video_path,
+            "last_frame_time": None,
         }
 
-        print(f"[{camera_id}] Video file opened: {video_path}")
+        # Логирование
+        VideoRecording.add_log(f"Started recording for camera {camera_id}, saving to {video_path}")
 
     @staticmethod
     def _finalize_writer(camera_id):
@@ -60,38 +58,86 @@ class VideoRecording(Module):
             recorder = VideoRecording.recorders[camera_id]
             if recorder["writer"]:
                 recorder["writer"].release()
-                print(f"[{camera_id}] Video file saved: {recorder['video_path']}")
             del VideoRecording.recorders[camera_id]
 
+            # Логирование
+            VideoRecording.add_log(f"Finished recording for camera {camera_id}, saved to {recorder['video_path']}")
+
     def proceed(self, data: base64):
-        print("proceed")
-        """
-        Обрабатывает кадры для указанной камеры и сохраняет их в соответствующий видеофайл.
-        """
+        """Обрабатывает кадры для указанной камеры и сохраняет их в соответствующий видеофайл."""
         frame64_bytes = data.get("frame_bytes")
         frame_bytes = base64.b64decode(frame64_bytes)
         camera_id = data.get("camera_name")
 
         try:
-            # Декодирование кадра из bytes в numpy array
             frame = np.frombuffer(frame_bytes, dtype=np.uint8)
             frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
             if frame is None:
-                print(f"[{camera_id}] Invalid frame data, skipping...")
+                VideoRecording.add_log(f"[{camera_id}] Invalid frame data, skipping...")
                 return
 
-            # Инициализация writer, если его еще нет
             if camera_id not in VideoRecording.recorders:
                 VideoRecording._initialize_writer(camera_id, frame)
 
-            # Запись кадра в текущий видеофайл
-            writer = VideoRecording.recorders[camera_id]["writer"]
-            writer.write(frame)
-            print(f"[{camera_id}] Frame written")
+            recorder = VideoRecording.recorders[camera_id]
+            current_time = time.time()
+
+            if recorder["last_frame_time"] is None:
+                recorder["last_frame_time"] = current_time
+            else:
+                elapsed_time = current_time - recorder["last_frame_time"]
+                recorder["last_frame_time"] = current_time
+                num_repeats = max(1, int(30 * elapsed_time))  # 30 FPS
+                for _ in range(num_repeats):
+                    recorder["writer"].write(frame)
         except Exception as e:
-            print(f"[{camera_id}] Error in video recording: {e}")
+            VideoRecording.add_log(f"[{camera_id}] Error in video recording: {e}")
 
     def finalize(self):
         """Завершает запись для всех камер."""
         for camera_id in list(VideoRecording.recorders.keys()):
             VideoRecording._finalize_writer(camera_id)
+
+    def get_detailed_info(self):
+        """Переопределение для предоставления детализированной информации о модуле записи видео."""
+        files = []
+        for camera_id, recorder in VideoRecording.recorders.items():
+            files.append(recorder["video_path"])
+
+        return {
+            "recorded_files": files,
+            "logs": VideoRecording.logs
+        }
+
+    def get_info(self):
+        """Метод для получения информации о модуле."""
+        info = {"basic": super().get_info(), "detailed": self.get_detailed_info()}
+        print(info)
+        return self.generate_html_report(info)
+
+    def generate_html_report(self, info):
+        """Метод для создания HTML-отчета с данными из метода get_info"""
+        # Получаем путь к директории, где находится текущий скрипт
+        script_dir = os.path.dirname(os.path.abspath(__file__))  # Абсолютный путь к текущей директории
+        template_path = os.path.join(script_dir, "template.html")  # Полный путь к файлу шаблона
+
+        # Загружаем файл
+        with open(template_path, "r", encoding="utf-8-sig") as file:
+            template = file.read()
+
+
+
+        # Заполняем шаблон данными
+        template = template.replace("{{module_name}}", info['basic']["name"])
+        template = template.replace("{{module_type}}", info['basic']["module_type"])
+        template = template.replace("{{address}}", info['basic']["address"])
+        template = template.replace("{{enabled}}", str(info['basic']["enabled"]))
+
+        # Заполняем списки файлов и логов
+        recorded_files = "<li>" + "</li><li>".join(info["detailed"]["recorded_files"]) + "</li>"
+        logs = "<li>" + "</li><li>".join(info["detailed"]["logs"]) + "</li>"
+
+        template = template.replace("{{recorded_files}}", recorded_files)
+        template = template.replace("{{logs}}", logs)
+        print(template)
+        return template

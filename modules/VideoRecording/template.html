@@ -1,0 +1,66 @@
+﻿<html lang="">
+<head>
+    <title>Video Recording Module</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        h2 {
+            color: #555;
+            font-size: 1.5em;
+        }
+        p, ul {
+            font-size: 1.1em;
+            margin: 10px 0;
+        }
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        li {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 5px;
+        }
+        #recorded_files li, #logs li {
+            background-color: #e9f7fd;
+            color: #333;
+        }
+        #recorded_files li:hover, #logs li:hover {
+            background-color: #cfe2f3;
+        }
+        #module_name, #module_type, #address, #enabled {
+            font-weight: bold;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>Module Information</h1>
+
+    <h2>Basic Information:</h2>
+    <p id="module_name">{{module_name}}</p>
+    <p id="module_type">{{module_type}}</p>
+    <p id="address">{{address}}</p>
+    <p id="enabled">{{enabled}}</p>
+
+    <h2>Recorded Files:</h2>
+    <ul id="recorded_files">
+        {{recorded_files}}
+    </ul>
+
+    <h2>Logs:</h2>
+    <ul id="logs">
+        {{logs}}
+    </ul>
+</body>
+</html>

@@ -15,7 +15,7 @@ router = APIRouter()
 def get_cameras(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Получение списка камер для администратора"""
     if user['role'] == "admin":
-        cameras = get_camera_list(db)  # Получаем список камер из сервиса
+        cameras = get_camera_list()  # Получаем список камер из сервиса
         return cameras
     else:
         raise HTTPException(status_code=403, detail="Access denied: Admin role required")

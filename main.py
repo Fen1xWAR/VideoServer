@@ -2,6 +2,8 @@
 from fastapi.openapi.utils import get_openapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
+
 from app.controllers import video, metrics, auth, cameras, module
 from app.services.database_service import *
 from app.services.module.ModuleService import ModuleManager
@@ -44,12 +46,15 @@ async def init_app():
     for camera in camera_list:
         await  start_camera(camera)
     # Подключение маршрутов
+
     app.include_router(video.router)
     app.include_router(metrics.router)
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
 
     app.include_router(module.router, prefix="/modules", tags=["modules"])
+
+    app.mount("/", StaticFiles(directory="client", html=True), name="client")
 
 
 async def close_app():
@@ -63,6 +68,9 @@ async def init(app: FastAPI):
     yield
     await close_app()
     print("finished app")
+
+
+
 
 
 app = FastAPI(lifespan=init)

@@ -13,3 +13,19 @@ class Module:
     def proceed(self, data : base64):
         """Обработка данных"""
         raise NotImplementedError("Each module must implement the 'proceed' function.")
+
+    def get_info(self):
+        """
+        Универсальный метод для получения информации о модуле.
+        - info_type определяет, какую информацию запрашивать:
+        - "basic" для базовой информации
+        - "detailed" для детальной информации, специфичной для модуля.
+        """
+        info = {
+            "name": self.name,
+            "module_type": self.module_type,
+            "address": self.address,
+            "enabled": self.enabled
+        }
+        print(info)
+        return info
