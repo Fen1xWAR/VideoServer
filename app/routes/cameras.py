@@ -2,9 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
-from app.services.database_service import Camera, get_db
+
+from app.models.table_models import Camera
 from app.services.camera_service import get_camera_list
-from app.services.security import get_current_user
+from app.services.database_service import get_db
+from app.services.security_service import get_current_user
 from app.services.video_service import stop_camera, start_camera, camera_tasks
 
 router = APIRouter()

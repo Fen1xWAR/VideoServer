@@ -5,6 +5,9 @@ from datetime import datetime
 import numpy as np
 from modules.Module import Module
 import time
+from app.logger import LoggerSingleton  # Импортируем логгер
+
+logger = LoggerSingleton.get_logger()  # Получаем логгер
 
 
 class VideoRecording(Module):
@@ -22,6 +25,7 @@ class VideoRecording(Module):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         log_entry = f"[{timestamp}] {log_message}"
         VideoRecording.logs.append(log_entry)
+        logger.info(log_entry)  # Логирование добавленных сообщений
 
     @staticmethod
     def _initialize_writer(camera_id, frame):
@@ -49,7 +53,7 @@ class VideoRecording(Module):
         }
 
         # Логирование
-        VideoRecording.add_log(f"Started recording for camera {camera_id}, saving to {video_path}")
+        VideoRecording.add_log(f"Запись для камеры {camera_id} начата, сохраняется в {video_path}")
 
     @staticmethod
     def _finalize_writer(camera_id):
@@ -61,7 +65,7 @@ class VideoRecording(Module):
             del VideoRecording.recorders[camera_id]
 
             # Логирование
-            VideoRecording.add_log(f"Finished recording for camera {camera_id}, saved to {recorder['video_path']}")
+            VideoRecording.add_log(f"Запись для камеры {camera_id} завершена, файл сохранен по пути {recorder['video_path']}")
 
     def proceed(self, data: base64):
         """Обрабатывает кадры для указанной камеры и сохраняет их в соответствующий видеофайл."""
@@ -73,7 +77,7 @@ class VideoRecording(Module):
             frame = np.frombuffer(frame_bytes, dtype=np.uint8)
             frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
             if frame is None:
-                VideoRecording.add_log(f"[{camera_id}] Invalid frame data, skipping...")
+                VideoRecording.add_log(f"[{camera_id}] Неверные данные кадра, пропуск...")  # Логирование ошибки
                 return
 
             if camera_id not in VideoRecording.recorders:
@@ -91,7 +95,7 @@ class VideoRecording(Module):
                 for _ in range(num_repeats):
                     recorder["writer"].write(frame)
         except Exception as e:
-            VideoRecording.add_log(f"[{camera_id}] Error in video recording: {e}")
+            VideoRecording.add_log(f"[{camera_id}] Ошибка при записи видео: {e}")  # Логирование ошибки
 
     def finalize(self):
         """Завершает запись для всех камер."""
@@ -112,7 +116,7 @@ class VideoRecording(Module):
     def get_info(self):
         """Метод для получения информации о модуле."""
         info = {"basic": super().get_info(), "detailed": self.get_detailed_info()}
-        print(info)
+        logger.info(f"Информация о модуле: {info}")  # Логирование информации о модуле
         return self.generate_html_report(info)
 
     def generate_html_report(self, info):
@@ -122,10 +126,12 @@ class VideoRecording(Module):
         template_path = os.path.join(script_dir, "template.html")  # Полный путь к файлу шаблона
 
         # Загружаем файл
-        with open(template_path, "r", encoding="utf-8-sig") as file:
-            template = file.read()
-
-
+        try:
+            with open(template_path, "r", encoding="utf-8-sig") as file:
+                template = file.read()
+        except Exception as e:
+            logger.error(f"Ошибка при чтении шаблона: {e}")
+            return ""
 
         # Заполняем шаблон данными
         template = template.replace("{{module_name}}", info['basic']["name"])
@@ -139,5 +145,6 @@ class VideoRecording(Module):
 
         template = template.replace("{{recorded_files}}", recorded_files)
         template = template.replace("{{logs}}", logs)
-        print(template)
+
+        logger.info(f"Сгенерирован HTML отчет для модуля {info['basic']['name']}")
         return template

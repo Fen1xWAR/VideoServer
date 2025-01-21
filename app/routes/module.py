@@ -5,10 +5,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-
-from app.services.database_service import get_db, Module
-from app.services.module.ModuleService import ModuleManager, is_html
-from app.services.security import get_current_user
+from app.models.table_models import Module
+from app.services.database_service import get_db
+from app.services.module_service import ModuleManager
+from app.services.security_service import get_current_user
 
 router = APIRouter()
 

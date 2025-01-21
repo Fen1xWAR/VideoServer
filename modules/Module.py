@@ -27,5 +27,4 @@ class Module:
             "address": self.address,
             "enabled": self.enabled
         }
-        print(info)
         return info

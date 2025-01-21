@@ -2,9 +2,10 @@
 from sqlalchemy.orm import Session
 from datetime import timedelta
 
-from app.services.database_service import User, get_db
 from app.models.auth import RegisterRequest, LoginRequest
-from app.services.security import verify_password, get_password_hash, create_access_token, get_current_user
+from app.models.table_models import User
+from app.services.database_service import get_db
+from app.services.security_service import get_password_hash, create_access_token, verify_password, get_current_user
 
 router = APIRouter()
 

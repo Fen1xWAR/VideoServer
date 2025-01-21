@@ -1,176 +1,556 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Stream</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <title>VisionX Surveillance System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        :root {
+            --primary: #2A2F4F;
+            --secondary: #917FB3;
+            --background: #FDE2F3;
+            --text: #2A2F4F;
+            --success: #50C878;
+            --error: #FF6B6B;
+        }
 
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Auth Section */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        }
+
+        .auth-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            transition: transform 0.3s ease;
+        }
+
+        .auth-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .auth-header h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .auth-button {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .auth-button:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+        }
+
+        /* Main Interface */
+        .dashboard {
+            display: none;
+            padding: 2rem;
+        }
+
+        /* Navigation */
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            background: white;
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .nav-tab {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .nav-tab:hover:not(.active) {
+            color: var(--secondary);
+        }
+
+        /* Camera Grid */
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .camera-card {
+            background: white;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+            #aspect-ratio: 16/9;
+        }
+
+        .camera-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .camera-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+        }
+
+        .camera-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .camera-status.active {
+            background: var(--success);
+        }
+
+        .camera-video {
+            width: 100%;
+            height: calc(100% - 50px);
+            background: #000;
+            position: relative;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Modules Section */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .module-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .module-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .module-icon {
+            font-size: 2rem;
+            color: var(--secondary);
+            margin-bottom: 1rem;
+        }
+
+        /* Loading State */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border-radius: 1.5rem;
+        }
+
+        .spinner {
+            animation: rotate 1s linear infinite;
+            width: 24px;
+            height: 24px;
+        }
+
+        .module-iframe {
+            width: 100%;
+            height: 70vh;
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .module-close-button {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .module-close-button:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+        }
+
+        @keyframes rotate {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
-<h1>Video Stream</h1>
-
-<div class="auth-form">
-    <label for="username">Логин:</label>
-    <input type="text" id="username" required>
-    <label for="password">Пароль:</label>
-    <input type="password" id="password" required>
-    <button id="login-button">Войти</button>
-</div>
-
-<div class="tabs">
-    <div class="tab active" data-tab="cameras-tab">Камеры</div>
-    <div class="tab" data-tab="modules-tab">Модули</div>
-</div>
-
-<div id="cameras-tab" class="tab-content active">
-    <div class="camera-grid" id="camera-grid"></div>
-</div>
-
-<div id="modules-tab" class="tab-content">
-    <div class="module-list" id="module-list">
-        <!-- Список модулей будет добавляться динамически -->
+<!-- Authentication Section -->
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>VisionX</h1>
+            <p>Surveillance System</p>
+        </div>
+        <div class="input-group">
+            <input type="text" id="username" placeholder="Username" required>
+        </div>
+        <div class="input-group">
+            <input type="password" id="password" placeholder="Password" required>
+        </div>
+        <button class="auth-button" id="login-button">Sign In</button>
     </div>
-    <iframe id="module-iframe" class="module-description" style="display:none;"></iframe>
+</div>
+
+<!-- Main Dashboard -->
+<div class="dashboard">
+    <nav class="nav-container">
+        <div class="brand">VisionX</div>
+        <div class="nav-tabs">
+            <div class="nav-tab active" data-tab="cameras-tab">Cameras</div>
+            <div class="nav-tab" data-tab="modules-tab">Modules</div>
+        </div>
+    </nav>
+
+    <!-- Cameras Tab -->
+    <div id="cameras-tab" class="tab-content active">
+        <div class="camera-grid" id="camera-grid"></div>
+    </div>
+
+    <!-- Modules Tab -->
+    <div id="modules-tab" class="tab-content">
+        <div class="modules-grid" id="module-list"></div>
+    </div>
 </div>
 
 <script>
-    const url = "127.0.0.1:8000";
-    const videoContainer = document.getElementById('camera-grid');
-    const moduleList = document.getElementById('module-list');
-    let jwtToken = '';
+    const config = {
+        apiUrl: "http://127.0.0.1:8000",
+        iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+    };
 
-    // Функция для аутентификации и получения JWT
-    async function authenticate() {
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
+    let authState = {
+        token: null,
+        user: null
+    };
 
+    const connections = new Map();
+
+    // Auth Controller
+    async function handleAuth(username, password) {
         try {
-            const response = await fetch(`http://${url}/auth/login`, {
+            const response = await fetch(`${config.apiUrl}/auth/login`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username, password})
             });
 
-            if (!response.ok) {
-                throw new Error('Ошибка аутентификации');
-            }
+            if (!response.ok) throw new Error('Authentication failed');
 
             const data = await response.json();
-            jwtToken = data.access_token; // Сохраняем JWT
+            authState = {token: data.access_token, user: username};
 
-            // Подключаемся к камерам и загружаем модули после успешной аутентификации
-            loadCameras();
-            loadModules();
+            document.querySelector('.auth-container').style.display = 'none';
+            document.querySelector('.dashboard').style.display = 'block';
+
+            initSystem();
         } catch (error) {
-            console.error('Ошибка при аутентификации:', error);
+            showError(error.message);
         }
     }
 
-    // Функция для загрузки камер
-    async function loadCameras() {
+    // System Initialization
+    async function initSystem() {
         try {
-            const response = await fetch(`http://${url}/cameras/get_cameras`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${jwtToken}`
-                }
-            });
+            const [cameras, modules] = await Promise.all([
+                fetchCameras(),
+                fetchModules()
+            ]);
 
-            if (!response.ok) {
-                throw new Error('Ошибка при загрузке камер');
-            }
-            const cameras = await response.json();
-            cameras.forEach(camera => {
-                const cameraCard = document.createElement('div');
-                cameraCard.classList.add('camera-card');
-                cameraCard.innerHTML = `
-                    <h3>Камера ${camera['name']}</h3>
-                    <img id="video-${camera['id']}" alt="Загрузка видео потока..." />
-                `;
-                videoContainer.appendChild(cameraCard);
-                connectWebSocket(camera['id']);
-            });
+            renderCameras(cameras);
+            renderModules(modules);
         } catch (error) {
-            console.error('Ошибка при загрузке камер:', error);
+            showError(error.message);
         }
     }
 
-    // Функция для подключения к WebSocket
-    function connectWebSocket(cameraId) {
-        const socket = new WebSocket(`ws://${url}/ws/video/${cameraId}`);
+    // Camera Management
+    async function fetchCameras() {
+        const response = await fetch(`${config.apiUrl}/cameras/get_cameras`, {
+            headers: {Authorization: `Bearer ${authState.token}`}
+        });
+        return response.json();
+    }
+
+    function renderCameras(cameras) {
+        const grid = document.getElementById('camera-grid');
+        grid.innerHTML = '';
+
+        cameras.forEach(camera => {
+            const card = document.createElement('div');
+            card.className = 'camera-card';
+            card.innerHTML = `
+                    <div class="camera-header">
+                        <span>${camera.name}</span>
+                        <div class="camera-status"></div>
+                    </div>
+                    <div class="camera-video">
+                        <video id="video-${camera.id}" autoplay playsinline></video>
+                        <div class="loading-overlay">
+                            <div class="spinner">🌀</div>
+                        </div>
+                    </div>
+                `;
+            grid.appendChild(card);
+            initCameraConnection(camera.id);
+        });
+    }
+
+    function initCameraConnection(cameraId) {
+        const ws = new WebSocket(`ws://${config.apiUrl.split('//')[1]}/ws/video/${cameraId}`);
+        const pc = new RTCPeerConnection({iceServers: config.iceServers});
         const videoElement = document.getElementById(`video-${cameraId}`);
 
-        socket.onopen = () => {
-            socket.send(JSON.stringify({token: jwtToken}));
+        connections.set(cameraId, {ws, pc});
+
+        // WebSocket handlers
+        ws.onopen = () => ws.send(JSON.stringify({
+            type: "auth",
+            token: authState.token
+        }));
+
+        ws.onmessage = async (event) => {
+            const message = JSON.parse(event.data);
+            if (message.type === 'offer') await handleOffer(pc, ws, message);
+            if (message.type === 'candidate') await handleCandidate(pc, message.data);
         };
 
-        socket.onmessage = (event) => {
-            videoElement.src = "data:image/jpeg;base64," + event.data;
+        // WebRTC handlers
+        pc.onicecandidate = ({candidate}) => {
+            if (candidate) ws.send(JSON.stringify({
+                type: "candidate",
+                data: {candidate: candidate.candidate}
+            }));
         };
 
-        socket.onerror = (error) => {
-            console.error(`Ошибка WebSocket для камеры ${cameraId}:`, error);
+        pc.ontrack = (event) => {
+            videoElement.srcObject = event.streams[0];
+            videoElement.parentElement.querySelector('.loading-overlay').style.display = 'none';
         };
 
-        socket.onclose = () => {
-            console.log(`Подключение WebSocket для камеры ${cameraId} закрыто.`);
-        };
+        pc.onconnectionstatechange = () => updateConnectionState(cameraId, pc.connectionState);
     }
 
-    // Функция для загрузки модулей
-    async function loadModules() {
+    async function handleOffer(pc, ws, offer) {
+        await pc.setRemoteDescription(offer);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({type: "answer", sdp: answer.sdp}));
+    }
+
+    async function handleCandidate(pc, candidate) {
         try {
-            const response = await fetch(`http://${url}/modules/get_modules`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${jwtToken}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Ошибка при загрузке модулей');
+            if (candidate.candidate) {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
             }
-
-            const modules = await response.json();
-            modules.forEach(module => {
-                const moduleButton = document.createElement('div');
-                moduleButton.classList.add('module');
-                moduleButton.textContent = module['name'];
-                moduleButton.addEventListener('click', () => openModule(module['id']));
-                moduleList.appendChild(moduleButton);
-            });
         } catch (error) {
-            console.error('Ошибка при загрузке модулей:', error);
+            console.error('Error adding ICE candidate:', error);
         }
     }
 
-    // Функция для открытия модуля в iframe
-    function openModule(moduleId) {
-        const iframe = document.getElementById('module-iframe');
-        iframe.style.display = 'block';
-        iframe.src = `http://${url}/modules/get_module/${moduleId}`;
+    function updateConnectionState(cameraId, state) {
+        const statusElement = document.querySelector(`#video-${cameraId}`)
+            .closest('.camera-card')
+            .querySelector('.camera-status');
+
+        statusElement.style.background = state === 'connected' ? 'var(--success)' : 'var(--error)';
     }
 
-    // Переключение вкладок
-    const tabs = document.querySelectorAll('.tab');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    // Module Management
+    async function fetchModules() {
+        const response = await fetch(`${config.apiUrl}/modules/get_modules`, {
+            headers: {Authorization: `Bearer ${authState.token}`}
+        });
+        return response.json();
+    }
 
+    function renderModules(modules) {
+        const grid = document.getElementById('module-list');
+        grid.innerHTML = '';
+
+        modules.forEach(module => {
+            const card = document.createElement('div');
+            card.className = 'module-card';
+            card.innerHTML = `
+                    <div class="module-icon">
+                        <i class="fas fa-${module.icon || 'cube'}"></i>
+                    </div>
+                    <h3>${module.name}</h3>
+                    <p>${module.description}</p>
+                `;
+            card.addEventListener('click', () => openModule(module.id));
+            grid.appendChild(card);
+        });
+    }
+
+    function openModule(moduleId) {
+        const modulesTab = document.getElementById('modules-tab');
+        const moduleList = document.getElementById('module-list');
+        const iframe = document.getElementById('module-iframe');
+
+        // Создаем iframe если не существует
+        if (!iframe) {
+            const newIframe = document.createElement('iframe');
+            newIframe.id = 'module-iframe';
+            newIframe.className = 'module-iframe';
+            modulesTab.appendChild(newIframe);
+        }
+
+        // Настройка iframe
+        iframe.src = `${config.apiUrl}/modules/get_module/${moduleId}`;
+        iframe.style.display = 'block';
+        moduleList.style.display = 'none';
+
+        // Добавляем кнопку закрытия
+        const closeButton = document.createElement('button');
+        closeButton.className = 'module-close-button';
+        closeButton.innerHTML = '<i class="fas fa-arrow-left"></i> Back to Modules';
+        closeButton.onclick = () => {
+            iframe.style.display = 'none';
+            moduleList.style.display = 'grid';
+            closeButton.remove();
+        };
+
+        modulesTab.insertBefore(closeButton, iframe);
+    }
+
+    // UI Helpers
+    function showError(message) {
+        const errorEl = document.createElement('div');
+        errorEl.className = 'error-message';
+        errorEl.textContent = message;
+        document.body.appendChild(errorEl);
+        setTimeout(() => errorEl.remove(), 3000);
+    }
+
+    // Event Listeners
+    document.getElementById('login-button').addEventListener('click', () => {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        handleAuth(username, password);
+    });
+
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.nav-tab, .tab-content').forEach(el =>
+                el.classList.remove('active'));
             tab.classList.add('active');
-            const tabContent = document.getElementById(tab.getAttribute('data-tab'));
-            tabContent.classList.add('active');
+            document.getElementById(tab.dataset.tab).classList.add('active');
         });
     });
 
-    document.getElementById('login-button').addEventListener('click', authenticate);
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+        connections.forEach(({pc, ws}) => {
+            pc.close();
+            ws.close();
+        });
+    });
 </script>
 </body>
 </html>

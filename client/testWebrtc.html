@@ -1,0 +1,157 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Video Stream</title>
+    <style>
+        /* Стили остаются без изменений */
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        video { width: 80%; max-width: 800px; height: auto; margin: 20px 0; border: 2px solid #333; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+<h1>WebRTC Video Stream from Camera</h1>
+<video id="video" autoplay playsinline></video>
+<button id="startButton">Start Video</button>
+
+<script>
+    const serverUrl = "ws://localhost:8000/ws/video/";
+    const cameraId = "be36ce08825e4df8ba5084fc20c88709";
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTczNzQ5MDI5OX0.X1b4DPepA31xJz1EGIPfJs8xrEsUIpHlawiU-v48imw"; // Ваш токен
+
+    let pc = null;
+    let websocket = null;
+
+    async function initializeConnection() {
+        // Инициализация WebSocket
+        websocket = new WebSocket(`${serverUrl}${cameraId}`);
+
+        // Инициализация PeerConnection
+        pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        // Обработчики событий WebSocket
+        websocket.onopen = () => {
+            console.log("WebSocket connected");
+            websocket.send(JSON.stringify({
+                type: "auth",
+                token: token
+            }));
+        };
+
+        websocket.onmessage = async (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                console.log("Received message:", message);
+
+                if (message.type === 'offer') {
+                    await handleOffer(message);
+                } else if (message.type === 'candidate') {
+                    await handleCandidate(message.data);
+                } else if (message.error) {
+                    console.error("Server error:", message.error);
+                }
+            } catch (error) {
+                console.error("Message handling error:", error);
+            }
+        };
+
+        websocket.onclose = () => {
+            console.log("WebSocket closed");
+            cleanup();
+        };
+
+        // Обработчики событий WebRTC
+        pc.onicecandidate = ({ candidate }) => {
+            if (candidate) {
+                websocket.send(JSON.stringify({
+                    type: "candidate",
+                    data: {
+                        candidate: candidate.candidate,
+                        sdpMid: candidate.sdpMid,
+                        sdpMLineIndex: candidate.sdpMLineIndex
+                    }
+                }));
+            }
+        };
+
+        pc.ontrack = (event) => {
+    const video = document.getElementById('video');
+    video.srcObject = event.streams[0];
+
+    // Явный запуск воспроизведения
+    video.play().catch(error => {
+        console.error('Playback error:', error);
+        video.muted = true;
+        video.play();
+    });
+
+    // Мониторинг состояния
+    event.track.onmute = () => console.log('Track muted');
+    event.track.onunmute = () => console.log('Track unmuted');
+};
+
+        pc.onconnectionstatechange = () => {
+            console.log("Connection state:", pc.connectionState);
+            if (pc.connectionState === 'failed') {
+                console.error("Connection failed");
+                cleanup();
+            }
+        };
+    }
+
+    async function handleOffer(offer) {
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            websocket.send(JSON.stringify({
+                type: "answer",
+                sdp: answer.sdp
+            }));
+        } catch (error) {
+            console.error("Offer handling error:", error);
+        }
+    }
+
+    async function handleCandidate(candidateData) {
+        try {
+            if (candidateData.candidate) {
+                await pc.addIceCandidate(new RTCIceCandidate({
+                    candidate: candidateData.candidate,
+                    sdpMid: candidateData.sdpMid,
+                    sdpMLineIndex: candidateData.sdpMLineIndex
+                }));
+            }
+        } catch (error) {
+            console.error("Candidate error:", error);
+        }
+    }
+
+    function cleanup() {
+        if (pc) {
+            pc.close();
+            pc = null;
+        }
+        if (websocket) {
+            websocket.close();
+            websocket = null;
+        }
+    }
+
+    // Инициализация при нажатии кнопки
+    document.getElementById('startButton').addEventListener('click', () => {
+        if (!pc || pc.connectionState === 'closed') {
+            initializeConnection();
+        }
+    });
+
+    // Очистка при закрытии страницы
+    window.addEventListener('beforeunload', cleanup);
+</script>
+</body>
+</html>

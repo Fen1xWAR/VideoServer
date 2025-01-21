@@ -1,124 +1,224 @@
 ﻿import asyncio
+from datetime import datetime
+
 import cv2
 import hashlib
+import base64
 from typing import Dict, Any
 
-from app.services.module.ModuleService import ModuleManager
-from app.services.config import Config
-from app.services.database_service import Camera
+from app import logger
+from app.config import Config
+from app.logger import LoggerSingleton
+from app.models.table_models import Camera
+from app.services.module_service import ModuleManager
 
+logger = LoggerSingleton.get_logger()
 # Лимит на количество одновременных задач
 semaphore = asyncio.Semaphore(20)
-
-# Загружаем каскад для детекции лиц
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 # Структуры для управления потоками камер и их кадрами
 camera_tasks: Dict[int, asyncio.Task] = {}
 camera_streams: Dict[int, Dict[str, Any]] = {}
 
-# Функция для захвата видео с камеры
-import base64
 
+def validate_camera_url(camera_url: str) -> Any:
+    """Проверяет URL камеры и преобразует строку в число, если это возможно."""
+    try:
+        return int(camera_url)
+    except ValueError:
+        return camera_url
+
+
+def hash_frame(frame_bytes: bytes) -> str:
+    """Создаёт хэш для проверки изменений кадра."""
+    return hashlib.md5(frame_bytes).hexdigest()
+
+
+async def process_frame(camera_id: int, frame_bytes: bytes, camera_name: str):
+    """Обрабатывает кадр, отправляя его в асинхронный модуль."""
+    frame_base64 = base64.b64encode(frame_bytes).decode('utf-8')
+    await ModuleManager.process_data({
+        "frame_bytes": frame_base64,
+        "camera_name": camera_name
+    })
+
+
+# async def video_capture(camera: Camera):
+#     """Метод запускает захват кадров с камеры."""
+#     logger.info(f"Запуск захвата камеры {camera.name}")
+#     camera_url = validate_camera_url(camera.url)
+#     cap = cv2.VideoCapture(camera_url)
+#
+#     if not cap.isOpened():
+#         logger.warning(f"Не удалось открыть камеру {camera.name}: {camera_url}")
+#         return
+#
+#     if camera.id not in camera_streams:
+#         camera_streams[camera.id] = {"running": True, "frame": None}
+#
+#     previous_frame_hash = None
+#
+#     try:
+#         while camera_streams[camera.id]["running"]:
+#             ret, frame = cap.read()
+#             if not ret:
+#                 logger.error(f"Ошибка чтения кадра с камеры {camera.name}")
+#                 break
+#
+#             try:
+#                 frame = cv2.resize(frame, Config.settings().CAMERA_RESOLUTION)
+#                 _, encoded_frame = cv2.imencode(
+#                     '.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), Config.settings().JPEG_QUALITY]
+#                 )
+#                 frame_bytes = encoded_frame.tobytes()
+#
+#                 frame_hash = hash_frame(frame_bytes)
+#                 if previous_frame_hash == frame_hash:
+#                     await asyncio.sleep(0.001)
+#                     continue
+#
+#                 previous_frame_hash = frame_hash
+#                 camera_streams[camera.id]["frame"] = frame_bytes
+#
+#                 asyncio.create_task(process_frame(camera.id, frame_bytes, camera.name))
+#             except Exception as e:
+#                 logger.error(f"Ошибка обработки кадра: {e}")
+#
+#             await asyncio.sleep(0.001)
+#
+#     finally:
+#         cap.release()
+#         logger.info(f"Захват камеры {camera.name} завершён.")
 
 async def video_capture(camera: Camera):
-    """Метод запускает захват кадров с камеры"""
-    print(f"Запуск захвата камеры {camera.name}")
-
-    # Проверка URL камеры
-    try:
-        camera_url = int(camera.url)  # Преобразуем строку в число, если это возможно
-    except ValueError:
-        camera_url = camera.url  # Если строка не является числом, используем её как есть
-
-    # Открываем видеопоток с камеры
+    """Метод запускает захват кадров с камеры."""
+    logger.info(f"Запуск захвата камеры {camera.name}")
+    camera_url = validate_camera_url(camera.url)
     cap = cv2.VideoCapture(camera_url)
+
     if not cap.isOpened():
-        print(f"Не удалось открыть камеру {camera.name}: {camera_url}")
+        logger.warning(f"Не удалось открыть камеру {camera.name}: {camera_url}")
         return
 
+    # Сохраняем сырые кадры вместо JPEG
+    camera_streams[camera.id] = {
+        "running": True,
+        "frame": None,  # Здесь будет numpy array
+        "processed_frame": None  # Для JPEG, если нужно
+    }
+
     previous_frame_hash = None
-    frame_counter = 0  # Счётчик кадров
 
     try:
         while camera_streams[camera.id]["running"]:
-            ret, frame = cap.read()  # Чтение кадра
+            ret, frame = cap.read()
             if not ret:
-                print(f"Ошибка чтения кадра с камеры {camera.name}")
+                logger.error(f"Ошибка чтения кадра с камеры {camera.name}")
                 break
 
-            # Изменение разрешения кадра
-            frame = cv2.resize(frame, Config.settings().CAMERA_RESOLUTION)
-            _, encoded_frame = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), Config.settings().JPEG_QUALITY])
-            frame_bytes = encoded_frame.tobytes()
+            try:
+                # Наложение текста на кадр
+                current_time = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                text = f"{current_time} | Cam: {camera.name}"
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 1.0
+                thickness = 2
+                text_color = (255, 255, 255)  # Белый цвет текста
+                bg_color = (0, 0, 0)  # Чёрный фон
+                margin = 10
 
-            # Хэшируем кадр для проверки изменений
-            frame_hash = hashlib.sha256(frame_bytes).hexdigest()
-            if previous_frame_hash == frame_hash:
-                await asyncio.sleep(0.001)  # Если кадр не изменился, пропускаем обработку
-                continue
+                # Вычисляем размеры текста
+                frame_height, frame_width, _ = frame.shape
+                (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
 
-            previous_frame_hash = frame_hash
+                # Позиция текста: правый нижний угол
+                x = frame_width - text_width - margin
+                y = frame_height - margin
 
-            frame_counter += 1  # Увеличиваем счётчик кадров
-            camera_streams[camera.id]["frame"] = frame_bytes  # Сохраняем текущий кадр
+                # Рисуем фон под текстом
+                cv2.rectangle(
+                    frame,
+                    (x - 5, y - text_height - 5),  # Верхний левый угол фона
+                    (x + text_width + 5, y + baseline + 5),  # Нижний правый угол фона
+                    bg_color,
+                    thickness=cv2.FILLED  # Заливка
+                )
 
-            # Отправляем кадр в обработку каждые 10 кадров (или по какой-то другой логике)
-            # if frame_counter % 10 == 0:
-            frame_base64 = base64.b64encode(frame_bytes).decode('utf-8')
+                # Накладываем текст
+                cv2.putText(
+                    frame,
+                    text,
+                    (x, y),
+                    font,
+                    font_scale,
+                    text_color,
+                    thickness,
+                    cv2.LINE_AA
+                )
 
-                # Создаем задачу для асинхронной обработки
-            asyncio.create_task(ModuleManager.process_data({
-                "frame_bytes": frame_base64,
-                "camera_name": camera.name
-            }))
+                # Сохраняем сырой кадр для WebRTC
+                resized_frame = cv2.resize(frame, Config.settings().CAMERA_RESOLUTION)
+                camera_streams[camera.id]["frame"] = resized_frame
 
-            await asyncio.sleep(0.001)  # Пауза перед следующей итерацией
+                # Отдельно готовим JPEG для модулей
+                _, encoded_frame = cv2.imencode(
+                    '.jpg', resized_frame,
+                    [int(cv2.IMWRITE_JPEG_QUALITY), Config.settings().JPEG_QUALITY]
+                )
+                frame_bytes = encoded_frame.tobytes()
+
+                # Проверка изменений кадра
+                frame_hash = hash_frame(frame_bytes)
+                if previous_frame_hash == frame_hash:
+                    await asyncio.sleep(0.001)
+                    continue
+
+                previous_frame_hash = frame_hash
+                camera_streams[camera.id]["processed_frame"] = frame_bytes
+
+                # Отправляем в модули
+                asyncio.create_task(process_frame(camera.id, frame_bytes, camera.name))
+
+            except Exception as e:
+                logger.error(f"Ошибка обработки кадра: {e}")
+
+            await asyncio.sleep(0.001)
 
     finally:
-        cap.release()  # Освобождаем ресурсы видеопотока
-        print(f"Захват камеры {camera.name} завершён.")
+        cap.release()
+        logger.info(f"Захват камеры {camera.name} завершён.")
+        # Очищаем данные
+        if camera.id in camera_streams:
+            del camera_streams[camera.id]
 
 
-
-# Функция для запуска камеры
 async def start_camera(camera: Camera):
-    """ Метод запускает захват камеры """
+    """Метод запускает захват камеры."""
     if camera.id in camera_tasks:
-        print(f"Камера {camera.name} уже запущена.")
+        logger.info(f"Камера {camera.name} уже запущена.")
         return
+
+    camera_streams[camera.id] = {
+        "url": camera.url,
+        "frame": None,
+        "running": camera.active
+    }
+
     if camera.active:
-        camera_streams[camera.id] = {"url": camera.url, "frame": None, "running": True}
-    else:
-        camera_streams[camera.id] = {"url": camera.url, "frame": None, "running": False}
-
-    task = asyncio.create_task(video_capture(camera))  # Создаём задачу для захвата видео
-    camera_tasks[camera.id] = task
+        task = asyncio.create_task(video_capture(camera))
+        camera_tasks[camera.id] = task
+        logger.info(f"Камера {camera.name} запущена.")
 
 
-# Функция для остановки камеры
 async def stop_camera(camera: Camera):
-    """ Метод останавливает захват камеры """
+    """Метод останавливает захват камеры."""
     if camera.id not in camera_tasks:
-        print(f"Камера {camera.name} не запущена.")
+        logger.info(f"Камера {camera.name} не запущена.")
         return
 
-    camera_streams[camera.id]["running"] = False  # Останавливаем захват
-    await camera_tasks[camera.id]  # Ожидаем завершения задачи
-    del camera_tasks[camera.id]  # Удаляем задачу
-    del camera_streams[camera.id]  # Удаляем информацию о камере
-    print(f"Камера {camera.name} остановлена.")
+    camera_streams[camera.id]["running"] = False
+    await camera_tasks[camera.id]
 
-
-# Функция для локальной проверки наличия лиц на кадре
-def detect_face(frame) -> bool:
-    """ Локальная проверка на наличие лица """
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Переводим кадр в серый цвет
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))  # Поиск лиц
-    return len(faces) > 0  # Возвращаем True, если лица найдены
-
-
-# Функция для хэширования кадра
-def hash_frame(frame_bytes: bytes) -> str:
-    """ Создание хэша для проверки изменений кадра """
-    return hashlib.md5(frame_bytes).hexdigest()  # Используем MD5 для хэширования кадра
+    del camera_tasks[camera.id]
+    del camera_streams[camera.id]
+    logger.info(f"Камера {camera.name} остановлена.")
