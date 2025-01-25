@@ -26,7 +26,7 @@ class Module(Base):
     __tablename__ = 'modules'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)  # Название модуля
-    module_type = Column(String(50), nullable=False)  # Тип модуля (например, 'video', 'audio', 'image', 'face_recognition')
+    module_type = Column(String(50), nullable=False)  # Тип модуля
     enabled = Column(Boolean, default=False)  # Включен ли модуль
     address = Column(String(255), nullable=True)  # Локальный путь или URL эндпоинта для модуля
     description = Column(Text, nullable=True)  # Описание модуля

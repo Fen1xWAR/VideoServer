@@ -43,53 +43,6 @@ async def process_frame(camera_id: int, frame_bytes: bytes, camera_name: str):
     })
 
 
-# async def video_capture(camera: Camera):
-#     """Метод запускает захват кадров с камеры."""
-#     logger.info(f"Запуск захвата камеры {camera.name}")
-#     camera_url = validate_camera_url(camera.url)
-#     cap = cv2.VideoCapture(camera_url)
-#
-#     if not cap.isOpened():
-#         logger.warning(f"Не удалось открыть камеру {camera.name}: {camera_url}")
-#         return
-#
-#     if camera.id not in camera_streams:
-#         camera_streams[camera.id] = {"running": True, "frame": None}
-#
-#     previous_frame_hash = None
-#
-#     try:
-#         while camera_streams[camera.id]["running"]:
-#             ret, frame = cap.read()
-#             if not ret:
-#                 logger.error(f"Ошибка чтения кадра с камеры {camera.name}")
-#                 break
-#
-#             try:
-#                 frame = cv2.resize(frame, Config.settings().CAMERA_RESOLUTION)
-#                 _, encoded_frame = cv2.imencode(
-#                     '.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), Config.settings().JPEG_QUALITY]
-#                 )
-#                 frame_bytes = encoded_frame.tobytes()
-#
-#                 frame_hash = hash_frame(frame_bytes)
-#                 if previous_frame_hash == frame_hash:
-#                     await asyncio.sleep(0.001)
-#                     continue
-#
-#                 previous_frame_hash = frame_hash
-#                 camera_streams[camera.id]["frame"] = frame_bytes
-#
-#                 asyncio.create_task(process_frame(camera.id, frame_bytes, camera.name))
-#             except Exception as e:
-#                 logger.error(f"Ошибка обработки кадра: {e}")
-#
-#             await asyncio.sleep(0.001)
-#
-#     finally:
-#         cap.release()
-#         logger.info(f"Захват камеры {camera.name} завершён.")
-
 async def video_capture(camera: Camera):
     """Метод запускает захват кадров с камеры."""
     logger.info(f"Запуск захвата камеры {camera.name}")
@@ -100,11 +53,11 @@ async def video_capture(camera: Camera):
         logger.warning(f"Не удалось открыть камеру {camera.name}: {camera_url}")
         return
 
-    # Сохраняем сырые кадры вместо JPEG
+
     camera_streams[camera.id] = {
         "running": True,
-        "frame": None,  # Здесь будет numpy array
-        "processed_frame": None  # Для JPEG, если нужно
+        "frame": None,  #  numpy array
+        "processed_frame": None  # JPEG, для модулей
     }
 
     previous_frame_hash = None
@@ -160,7 +113,7 @@ async def video_capture(camera: Camera):
                 resized_frame = cv2.resize(frame, Config.settings().CAMERA_RESOLUTION)
                 camera_streams[camera.id]["frame"] = resized_frame
 
-                # Отдельно готовим JPEG для модулей
+                # Отдельно готовим JPEG для модулей со сжатием
                 _, encoded_frame = cv2.imencode(
                     '.jpg', resized_frame,
                     [int(cv2.IMWRITE_JPEG_QUALITY), Config.settings().JPEG_QUALITY]
@@ -176,7 +129,7 @@ async def video_capture(camera: Camera):
                 previous_frame_hash = frame_hash
                 camera_streams[camera.id]["processed_frame"] = frame_bytes
 
-                # Отправляем в модули
+                # Отправка в модули
                 asyncio.create_task(process_frame(camera.id, frame_bytes, camera.name))
 
             except Exception as e:
@@ -184,6 +137,8 @@ async def video_capture(camera: Camera):
 
             await asyncio.sleep(0.001)
 
+    except KeyError as e:
+        logger.info(f"Камера была {camera.name} удалена из списка потоков")
     finally:
         cap.release()
         logger.info(f"Захват камеры {camera.name} завершён.")
@@ -211,13 +166,14 @@ async def start_camera(camera: Camera):
 
 
 async def stop_camera(camera: Camera):
+    print(camera_streams.keys())
     """Метод останавливает захват камеры."""
     if camera.id not in camera_tasks:
         logger.info(f"Камера {camera.name} не запущена.")
         return
 
     camera_streams[camera.id]["running"] = False
-    await camera_tasks[camera.id]
+    # await camera_tasks[camera.id]
 
     del camera_tasks[camera.id]
     del camera_streams[camera.id]

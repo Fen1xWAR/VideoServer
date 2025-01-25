@@ -1,6 +1,7 @@
 ﻿import logging
 import os
 from datetime import datetime
+import sys
 
 
 class LoggerSingleton:
@@ -39,7 +40,7 @@ class LoggerSingleton:
         console_handler.setFormatter(formatter)
 
         # Если на Windows, можем использовать sys.stdout для установки правильной кодировки
-        import sys
+
         if sys.stdout.encoding != 'UTF-8':
             console_handler.setStream(sys.stdout)
 

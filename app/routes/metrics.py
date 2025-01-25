@@ -12,16 +12,16 @@ def get_metrics():
     process = psutil.Process()
     memory_info = process.memory_info()
 
-    # CPU metrics
+    # Метрика процессора
     cpu_percent = process.cpu_percent()
 
-    # Thread count
+    # Количество процессов
     num_threads = process.num_threads()
 
-    # Uptime
+    # Время жизни
     uptime_seconds = time.time() - process.create_time()
 
-    # IO metrics
+    # Метрики IO
     try:
         io_counters = process.io_counters()
         io_read_mb = io_counters.read_bytes / (1024 ** 2)

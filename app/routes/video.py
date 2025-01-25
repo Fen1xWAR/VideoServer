@@ -44,7 +44,6 @@ class CameraVideoTrack(VideoStreamTrack):
 
                 # Конвертация формата для WebRTC
                 video_frame = VideoFrame.from_ndarray(frame, format="bgr24")
-                # logger.debug(f"{video_frame.width} * {video_frame.height}")
                 video_frame = video_frame.reformat(
                     format="yuv420p",
                     width=video_frame.width,
@@ -60,67 +59,73 @@ class CameraVideoTrack(VideoStreamTrack):
                 await asyncio.sleep(0.1)
 
 
+# WebSocket endpoint для видеопотока с конкретной камеры
 @router.websocket("/ws/video/{camera_id}")
-async def websocket_video_stream(websocket: WebSocket, camera_id: str):
+async def video_stream(websocket: WebSocket, camera_id: str):
+    # Принимаем WebSocket соединение
     await websocket.accept()
-    pc = None
-    db_session = None
+
+    # Инициализация переменных для WebRTC соединения и БД сессии
+    pc = None  # RTCPeerConnection объект
+    db_session = None  # Сессия подключения к базе данных
 
     try:
-        # Аутентификация
+        # Этап 1: Аутентификация пользователя
+        # Получаем и парсим сообщение с токеном
         data = await websocket.receive_text()
         message = json.loads(data)
         token = message.get("token")
 
         if not token:
-            raise ValueError("Authentication token missing")
+            raise ValueError("Отсуствует токен авторизации")
 
-        # Валидация токена
+        # Валидируем JWT токен
         try:
             payload = jwt.decode(
                 token,
                 Config.settings().SECRET_KEY,
                 algorithms=[Config.settings().ALGORITHM]
             )
+            # Формируем объект пользователя из payload токена
             user = {"username": payload["sub"], "role": payload["role"]}
-            logger.info(f"User {user['username']} connected")
+            logger.info(f"Пользователь {user['username']} подключился")
         except Exception as e:
-            raise ValueError(f"Invalid token: {str(e)}")
+            raise ValueError(f"Токен недействителен: {str(e)}")
 
-        # Проверка камеры
         db_session = get_db()
         camera_uuid = UUID(camera_id)
         camera = db_session.query(Camera).filter(Camera.id == camera_uuid).first()
 
+        # Этап 2: Настройка WebRTC соединения
+        pc = RTCPeerConnection()  # Создаем новое WebRTC соединение
 
+        # Создаем и добавляем видеотрек для указанной камеры
+        video_track = CameraVideoTrack(camera_uuid, camera.name)
+        pc.addTrack(video_track)  # Добавляем трек в соединение
 
-        # WebRTC Configuration
-        pc = RTCPeerConnection()
-
-        # Добавляем видеотрек
-        video_track = CameraVideoTrack(camera_uuid,camera.name)
-        pc.addTrack(video_track)
-
-        # SDP Negotiation
+        # Создаем SDP offer для инициализации соединения
         offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
+        await pc.setLocalDescription(offer)  # Устанавливаем локальное описание
 
-        # Модифицируем SDP для sendonly режима
+        # Модифицируем SDP для режима "только отправка" (sendonly)
         modified_sdp = pc.localDescription.sdp.replace(
-            "a=sendrecv",
-            "a=sendonly"
+            "a=sendrecv",  # Стандартный режим отправки/приема
+            "a=sendonly"  # Меняем на режим только отправки
         )
 
+        # Отправляем модифицированный offer клиенту
         await websocket.send_text(json.dumps({
             "sdp": modified_sdp,
             "type": "offer"
         }))
 
-        # Измененный обработчик ICE-кандидатов
+        # Этап 3: Обработка ICE-кандидатов
+        # Коллбэк для обработки генерации ICE-кандидатов
         @pc.on("icecandidate")
         async def on_ice_candidate(candidate):
             try:
                 if candidate and candidate.candidate:
+                    # Формируем данные кандидата для отправки клиенту
                     ice_data = {
                         "candidate": candidate.candidate,
                         "sdpMid": candidate.sdpMid,
@@ -131,21 +136,23 @@ async def websocket_video_stream(websocket: WebSocket, camera_id: str):
                         "data": ice_data
                     }))
             except Exception as e:
-                logger.error(f"ICE candidate error: {str(e)}")
+                logger.error(f"Ошибка ICE кандидатов: {str(e)}")
 
-        # Обработка ответа от клиента
+        # Этап 4: Обработка клиентских ответов
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
 
+            # Обработка SDP answer от клиента
             if message.get("sdp"):
                 answer = RTCSessionDescription(
                     sdp=message["sdp"],
                     type="answer"
                 )
-                await pc.setRemoteDescription(answer)
-                logger.info("SDP answer received and processed")
+                await pc.setRemoteDescription(answer)  # Устанавливаем удаленное описание
+                logger.info("SDP ответ получен")
 
+            # Обработка ICE кандидатов от клиента
             elif message.get("candidate"):
                 candidate = message["candidate"]
                 await pc.addIceCandidate(
@@ -155,19 +162,25 @@ async def websocket_video_stream(websocket: WebSocket, camera_id: str):
                         sdpMLineIndex=candidate["sdpMLineIndex"]
                     )
                 )
-                logger.info("ICE candidate added")
+                logger.info("ICE кандидат добавлен")
 
+    # Обработка разрыва соединения
     except WebSocketDisconnect:
-        logger.info(f"Client disconnected from camera {camera_id}")
+        logger.info(f"Пользователь {user['username']} отключился от камеры {camera_id}")
+
+    # Обработка общих ошибок
     except Exception as e:
         logger.error(f"Error: {str(e)}")
-        await websocket.send_text(json.dumps({"error": str(e)}))
+        await websocket.send_text(json.dumps({"ошибка": str(e)}))
+
+    # ФинализациЯ: очистка ресурсов
     finally:
         try:
             if pc:
-                await pc.close()
+                await pc.close()  # Закрываем WebRTC соединение
             if db_session:
-                db_session.close()
+                db_session.close()  # Закрываем сессию с БД
         except Exception as e:
-            logger.error(f"Cleanup error: {str(e)}")
-        logger.info(f"WebSocket closed for camera {camera_id}")
+            logger.error(f"Ошибка очистки: {str(e)}")
+
+        logger.info(f"Вебсокет закрыт для камеры {camera_id}")

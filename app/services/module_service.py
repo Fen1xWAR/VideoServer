@@ -128,31 +128,30 @@ class ModuleManager:
                             json=data,
                             timeout=timeout
                     ) as response:
-                        # Проверка на успешный статус
                         response.raise_for_status()
                         return await cls._handle_network_response(response, module.name)
                 except asyncio.TimeoutError:
-                    logger.warning(f"Timeout while waiting for response from {module.name}")
-                    return {"error": "Request timed out"}
+                    logger.warning(f"Таймаут в процессе ожидания ответа от  {module.name}")
+                    return {"error": "Превышено время ожидание ответа"}
                 except aiohttp.ClientError as e:
-                    logger.error(f"Network error in {module.name}: {e}")
+                    logger.error(f"Сетевая ошибка в  {module.name}: {e}")
                     return {"error": str(e)}
                 except Exception as e:
-                    logger.error(f"Unexpected error in {module.name}: {e}")
-                    return {"error": f"Unexpected error: {e}"}
+                    logger.error(f"Неизвестная ошибка в {module.name}: {e}")
+                    return {"error": f"Неизвестная ошибка в: {e}"}
 
         except asyncio.CancelledError:
-            logger.warning(f"Request cancelled: {module.name}")
+            logger.warning(f"Запрос отклонен от : {module.name}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in {module.name}: {e}")
-            return {"error": f"Unexpected error during connection setup: {e}"}
+            logger.error(f"Неизвестная ошибка от {module.name}: {e}")
+            return {"error": f"Неизвестная ошибка в процессе установления соединения: {e}"}
 
     @classmethod
     def _process_local_module(cls, module: Module, data: dict):
         if not module.loaded_class:
-            logger.error(f"No class loaded for module: {module.name}")
-            return {"error": "Module class not loaded"}
+            logger.error(f"Класс не был загружен для модуля: {module.name}")
+            return {"error": "Класс модуля не был загружен"}
 
         try:
             instance = module.loaded_class(
@@ -162,10 +161,9 @@ class ModuleManager:
                 enabled=module.enabled
             )
             result = instance.proceed(data)
-            # logger.debug(f"Local module processed: {module.name}")
             return result
         except Exception as e:
-            logger.error(f"Local module error {module.name}: {e}")
+            logger.error(f"Ошибка локального модуля {module.name}: {e}")
             return {"error": str(e)}
 
     @classmethod

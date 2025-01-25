@@ -20,13 +20,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")  # Указывае
 
 # Проверка пароля
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Проверяет, совпадает ли обычный пароль с хэшированным паролем.
 
-    :param plain_password: Обычный пароль
-    :param hashed_password: Хэшированный пароль
-    :return: True, если пароли совпадают, иначе False
-    """
     result = password_context.verify(plain_password, hashed_password)
     if result:
         logger.info("Пароль совпал.")
@@ -37,12 +31,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # Хэширование пароля
 def get_password_hash(password: str) -> str:
-    """
-    Хэширует пароль с использованием bcrypt.
 
-    :param password: Обычный пароль
-    :return: Хэшированный пароль
-    """
     hashed_password = password_context.hash(password)
     logger.info(f"Пароль хэширован: {hashed_password}")
     return hashed_password
@@ -50,13 +39,7 @@ def get_password_hash(password: str) -> str:
 
 # Создание токена доступа
 def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None) -> str:
-    """
-    Создает токен доступа с заданными данными и временем жизни.
 
-    :param data: Данные, которые будут закодированы в токене
-    :param expires_delta: Время жизни токена (по умолчанию 30 минут)
-    :return: JWT токен
-    """
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=30))
     to_encode.update({"exp": expire})
@@ -67,13 +50,7 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
 
 # Получение текущего пользователя из токена
 def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
-    """
-    Извлекает текущего пользователя из JWT токена.
 
-    :param token: JWT токен
-    :return: Данные пользователя (username, role)
-    :raises HTTPException: Если токен некорректен
-    """
     try:
         # Декодируем токен и извлекаем информацию
         payload = jwt.decode(token, Config.settings().SECRET_KEY, algorithms=[Config.settings().ALGORITHM])

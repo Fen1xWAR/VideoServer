@@ -91,7 +91,7 @@ class VideoRecording(Module):
             else:
                 elapsed_time = current_time - recorder["last_frame_time"]
                 recorder["last_frame_time"] = current_time
-                num_repeats = max(1, int(30 * elapsed_time))  # 30 FPS
+                num_repeats = max(1, int(30 * elapsed_time))
                 for _ in range(num_repeats):
                     recorder["writer"].write(frame)
         except Exception as e:
